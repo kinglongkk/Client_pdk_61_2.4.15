@@ -12,9 +12,15 @@ var pdk_ControlManager = app.BaseClass.extend({
         cc.game.on(cc.game.EVENT_SHOW,  this.OnEventShow.bind(this));
 
         this.catchDataDict = {};
-        // bundle 缓存（例如 'pdk'）
-        this.subBundleName = app.subGameName;
+        // bundle 缓存（仅使用真实分包名 'pdk'，禁用备用名避免 404 请求 pdk_bundle/config.json）
+        this.subBundleName = app.subGameName; // 'pdk'
+        this.subBundleAltName = ""; // 禁用备用名，防止请求 pdk_bundle/config.json
+        // 仅尝试获取主 bundle 引用
         this.subBundle = cc.assetManager.getBundle(this.subBundleName) || null;
+        if (this.subBundle && this.subBundle._config && this.subBundle._config.name) {
+            // 记录引擎实际 bundle 名（通常是 'pdk'）
+            this.subBundleName = this.subBundle._config.name;
+        }
     },
 
     //--------------回掉函数---------------
@@ -43,6 +49,7 @@ var pdk_ControlManager = app.BaseClass.extend({
         // 创建异步函数
         let promisefunc = function (resolve, reject) {
             const finalResType = resType || undefined;
+            const isGameRes = resPath && resPath.indexOf('game/') === 0;
 
             const onLoadedFromResources = function (error, loadData) {
                 if (error) {
@@ -58,37 +65,112 @@ var pdk_ControlManager = app.BaseClass.extend({
                 cc.resources.load(resPath, finalResType, onLoadedFromResources);
             };
 
+            const tryLoadFromAltBundle = function () {
+                // 非 game/* 资源不尝试备用 bundle，直接走 resources
+                if (!isGameRes) {
+                    return false;
+                }
+                if (!that.subBundleAltName || that.subBundleAltName === that.subBundleName) {
+                    return false;
+                }
+                // 如果备用 bundle 已在内存，直接用
+                let alt = cc.assetManager.getBundle(that.subBundleAltName);
+                if (alt) {
+                    that.subBundle = alt;
+                    that.subBundleName = that.subBundleAltName;
+                    loadFromBundle(alt);
+                    return true;
+                }
+                cc.assetManager.loadBundle(that.subBundleAltName, function (err, bundle2) {
+                    if (err || !bundle2) {
+                        that.ErrLog("load alt bundle(%s) failed. err:%s", that.subBundleAltName, err && (err.stack || err));
+                        // 尝试失败，不再递归
+                        if (isGameRes) {
+                            reject(err || new Error('load alt bundle failed'));
+                        } else {
+                            loadFromResources();
+                        }
+                        return;
+                    }
+                    that.subBundle = bundle2;
+                    that.subBundleName = that.subBundleAltName;
+                    loadFromBundle(bundle2);
+                });
+                return true;
+            };
+
             const loadFromBundle = function (bundle) {
                 try {
                     bundle.load(resPath, finalResType, function (error, loadData) {
                         if (error) {
-                            // 分包里没有则回退到 resources
-                            that.Log("bundle.load failed, fallback to resources. bundle(%s) resPath(%s) err:%s", that.subBundleName, resPath, (error.stack || error));
+                            // 分包里没有
+                            that.Log("bundle.load failed, try alt or fallback. bundle(%s) resPath(%s) err:%s", that.subBundleName, resPath, (error.stack || error));
+                            // 若路径形如 game/PDK/xxx，尝试自动映射为 game/xxx 再加载一次
+                            if (isGameRes && resPath.indexOf('game/PDK/') === 0) {
+                                const mappedPath = 'game/' + resPath.substring('game/PDK/'.length);
+                                that.Log("try mapped game path: %s -> %s", resPath, mappedPath);
+                                return bundle.load(mappedPath, finalResType, function(err2, data2){
+                                    if (!err2 && data2) {
+                                        // 命中映射路径，仍以原始 key 缓存与返回
+                                        that.catchDataDict[resPath] = data2;
+                                        return resolve(data2);
+                                    }
+                                    // 映射也失败，再走备用 bundle 或回退
+                                    if (tryLoadFromAltBundle()) {
+                                        return;
+                                    }
+                                    if (isGameRes) {
+                                        return reject(err2 || error);
+                                    }
+                                    return loadFromResources();
+                                });
+                            }
+                            // 优先尝试备用 bundle（例如在 pdk 中未找到，但在 pdk_bundle 中）
+                            if (tryLoadFromAltBundle()) {
+                                return;
+                            }
+                            // 对于子游戏专属资源(如 game/*)，应存在于分包中；若两 bundle 都失败，则报错
+                            if (isGameRes) {
+                                return reject(error);
+                            }
+                            // 非 game/* 公共资源，回退到 resources
                             return loadFromResources();
                         }
                         that.catchDataDict[resPath] = loadData;
                         resolve(loadData);
                     });
                 } catch (e) {
-                    // 意外异常时回退到 resources
-                    that.ErrLog("bundle.load exception, fallback to resources. resPath(%s) err:%s", resPath, e.stack || e);
+                    // 意外异常：先试备用 bundle；若仍失败再决定是否回退
+                    that.ErrLog("bundle.load exception. resPath(%s) err:%s", resPath, e.stack || e);
+                    if (tryLoadFromAltBundle()) {
+                        return;
+                    }
+                    if (isGameRes) {
+                        return reject(e);
+                    }
                     loadFromResources();
                 }
             };
 
-            // 优先使用子游戏 bundle（如 'pdk'），失败则回退到 resources
-            if (that.subBundle) {
-                loadFromBundle(that.subBundle);
+            // 仅 game/* 资源才优先走子游戏 bundle；其余资源直接从 resources 加载
+            if (isGameRes) {
+                if (that.subBundle) {
+                    loadFromBundle(that.subBundle);
+                } else {
+                    cc.assetManager.loadBundle(that.subBundleName, function (err, bundle) {
+                        if (err || !bundle) {
+                            // 不再尝试备用 bundle，直接失败（避免对 pdk_bundle/config.json 的 404 请求）
+                            that.ErrLog("loadBundle(%s) failed. err:%s", that.subBundleName, err && (err.stack || err));
+                            return reject(err || new Error('loadBundle failed'));
+                        }
+                        that.subBundle = bundle;
+                        that.subBundleName = that.subBundleName;
+                        loadFromBundle(bundle);
+                    });
+                }
             } else {
-                cc.assetManager.loadBundle(that.subBundleName, function (err, bundle) {
-                    if (err || !bundle) {
-                        that.ErrLog("loadBundle(%s) failed, fallback to resources. err:%s", that.subBundleName, err && (err.stack || err));
-                        loadFromResources();
-                        return;
-                    }
-                    that.subBundle = bundle;
-                    loadFromBundle(bundle);
-                });
+                // 非 game/*
+                loadFromResources();
             }
         };
         // 返回异步对象

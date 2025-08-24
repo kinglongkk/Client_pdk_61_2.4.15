@@ -184,40 +184,105 @@ var pdk_SceneManager = app.BaseClass.extend({
         // console.log("StartLoadScene SceneInfo == " + JSON.stringify(this.SceneInfo));
         let GamePrefab = this.SceneInfo[sceneName].gamePrefab;
         let that = this;
+        // 仅这些场景在分包 pdk 内，其它（如 pdkLoginScene）走主包
+        const isSceneInSubBundle = (sceneName === 'pdkMainScene' || sceneName === 'pdkLaunchScene');
         //
         if (GamePrefab == 0) {
-            //退出当前场景
-            if (lastSceneScript) {
-                lastSceneScript.OnBeforeExitScene();
-            }
-            //关闭场景界面和模型
-            app[app.subGameName + "_FormManager"]().OnBeforeExitScene(lastSceneScriptName);
-            //加载失败,也要切换进场景
-            this.sceneComponent = null;
-            cc.director.loadScene(sceneName, that.OnLoadSceneEnd.bind(that));
-
-        } else {
-            app[app.subGameName + "_ControlManager"]().CreateLoadPromise(this.RealGamePrefab(GamePrefab))
-                .then(function(prefab) {
-                    //退出当前场景
-                    //加载失败,也要切换进场景
-                    that.sceneComponent = null;
-                    cc.director.preloadScene(sceneName, function() {
-
-                        if (lastSceneScript) {
-                            lastSceneScript.OnBeforeExitScene();
-                        }
-                        //关闭场景界面和模型
-                        app[app.subGameName + "_FormManager"]().OnBeforeExitScene(lastSceneScriptName);
-
-                        cc.director.loadScene(sceneName, that.OnLoadSceneEnd.bind(that));
+            // 退出当前场景并优先从分包加载场景（仅当场景位于分包）
+            const ctrlA = app[app.subGameName + "_ControlManager"]();
+            const doExitAndRunA = (runner)=>{
+                if (lastSceneScript) {
+                    lastSceneScript.OnBeforeExitScene();
+                }
+                app[app.subGameName + "_FormManager"]().OnBeforeExitScene(lastSceneScriptName);
+                this.sceneComponent = null;
+                runner();
+            };
+            const fallbackMainLoadA = ()=>{
+                cc.director.loadScene(sceneName, that.OnLoadSceneEnd.bind(that));
+            };
+            const runFromBundleSceneA = (bundle)=>{
+                bundle.loadScene(sceneName, function(err, sceneAsset){
+                    if (err || !sceneAsset) {
+                        that.ErrLog("bundle.loadScene(%s) failed, fallback main. err:%s", sceneName, err && (err.stack || err));
+                        return fallbackMainLoadA();
+                    }
+                    doExitAndRunA(()=>{
+                        cc.director.runSceneImmediate(sceneAsset);
+                        that.OnLoadSceneEnd();
                     });
-                    return;
-                })
-                .catch(function(error) {
-                    //
-                })
-        }
+                });
+            };
+            if (isSceneInSubBundle && ctrlA && ctrlA.subBundle) {
+                runFromBundleSceneA(ctrlA.subBundle);
+            } else if (isSceneInSubBundle && ctrlA) {
+                const nameA = ctrlA.subBundleName || 'pdk';
+                cc.assetManager.loadBundle(nameA, function(e, b){
+                    if (e || !b) {
+                        return fallbackMainLoadA();
+                    }
+                    ctrlA.subBundle = b;
+                    ctrlA.subBundleName = nameA;
+                    runFromBundleSceneA(b);
+                });
+            } else {
+                fallbackMainLoadA();
+            }
+             
+         } else {
+             app[app.subGameName + "_ControlManager"]().CreateLoadPromise(this.RealGamePrefab(GamePrefab))
+                 .then(function(prefab) {
+                     //退出当前场景
+                     //加载失败,也要切换进场景
+                     const ctrlB = app[app.subGameName + "_ControlManager"]();
+                     const doExitAndRunB = (runner)=>{
+                         if (lastSceneScript) {
+                             lastSceneScript.OnBeforeExitScene();
+                         }
+                         app[app.subGameName + "_FormManager"]().OnBeforeExitScene(lastSceneScriptName);
+                         that.sceneComponent = null;
+                         runner();
+                     };
+                     const fallbackMainLoadB = ()=>{
+                         cc.director.preloadScene(sceneName, function(){
+                             doExitAndRunB(()=>{
+                                 cc.director.loadScene(sceneName, that.OnLoadSceneEnd.bind(that));
+                             });
+                         });
+                     };
+                     const runFromBundleSceneB = (bundle)=>{
+                         bundle.loadScene(sceneName, function(err, sceneAsset){
+                             if (err || !sceneAsset) {
+                                 that.ErrLog("bundle.loadScene(%s) failed, fallback main. err:%s", sceneName, err && (err.stack || err));
+                                 return fallbackMainLoadB();
+                             }
+                             doExitAndRunB(()=>{
+                                 cc.director.runSceneImmediate(sceneAsset);
+                                 that.OnLoadSceneEnd();
+                             });
+                         });
+                     };
+                     if (isSceneInSubBundle && ctrlB && ctrlB.subBundle) {
+                         runFromBundleSceneB(ctrlB.subBundle);
+                     } else if (isSceneInSubBundle && ctrlB) {
+                         const nameB = ctrlB.subBundleName || 'pdk';
+                         cc.assetManager.loadBundle(nameB, function(e, b){
+                             if (e || !b) {
+                                 return fallbackMainLoadB();
+                             }
+                             ctrlB.subBundle = b;
+                             ctrlB.subBundleName = nameB;
+                             runFromBundleSceneB(b);
+                         });
+                     } else {
+                         fallbackMainLoadB();
+                     }
+                     return;
+                 })
+                 .catch(function(error) {
+                     //
+                 })
+         }
         //预加载有戏场景
 
     },
