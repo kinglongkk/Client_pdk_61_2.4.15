@@ -105,7 +105,7 @@ var pdk_FormManager = app.BaseClass.extend({
         // }
 
         let that = this;
-        return app[app.subGameName + "_ControlManager"]().CreateLoadPromise(formPath)
+        return app[app.subGameName + "_ControlManager"]().CreateLoadPromise(formPath, cc.Prefab)
             .then(function(prefab) {
                 if (that.loadFormDict.hasOwnProperty(formPath)) {
                     that.Log("CreateForm(%s)重复创建界面", formPath);
@@ -127,7 +127,7 @@ var pdk_FormManager = app.BaseClass.extend({
 
             })
             .catch(function(error) {
-                that.ErrLog("CreateForm(%s) error:%s", formName, error.stack);
+                that.ErrLog("CreateForm(%s) error:%s", formName, (error && (error.stack || error.message || error)));
             })
     },
     //显示界面
@@ -180,7 +180,7 @@ var pdk_FormManager = app.BaseClass.extend({
                 return formComponent
             })
             .catch(function(error) {
-                that.ErrLog("ShowForm error:%s", error.stack);
+                that.ErrLog("ShowForm error:%s", (error && (error.stack || error.message || error)));
                 app[app.subGameName + "Client"].OnEvent("ModalLayer", "CreateFormEnd");
             })
 

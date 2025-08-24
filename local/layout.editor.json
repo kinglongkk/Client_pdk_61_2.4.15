@@ -14,12 +14,12 @@
         "children": [
           {
             "width": 204,
-            "height": 680,
+            "height": 677.5,
             "type": "dock-v",
             "children": [
               {
                 "width": 204,
-                "height": 249,
+                "height": 248.078125,
                 "type": "panel",
                 "active": 0,
                 "children": [
@@ -28,7 +28,7 @@
               },
               {
                 "width": 204,
-                "height": 428,
+                "height": 426.421875,
                 "type": "panel",
                 "active": 0,
                 "children": [
@@ -38,13 +38,22 @@
             ]
           },
           {
+            "width": 304,
+            "height": 677.5,
+            "type": "panel",
+            "active": 0,
+            "children": [
+              "inspector"
+            ]
+          },
+          {
             "width": 607.984375,
-            "height": 680,
+            "height": 677.5,
             "type": "dock-v",
             "children": [
               {
                 "width": 607.984375,
-                "height": 403,
+                "height": 401.515625,
                 "type": "panel",
                 "active": 0,
                 "children": [
@@ -53,7 +62,7 @@
               },
               {
                 "width": 607.984375,
-                "height": 274,
+                "height": 272.984375,
                 "type": "panel",
                 "active": 0,
                 "children": [
@@ -61,15 +70,6 @@
                   "timeline"
                 ]
               }
-            ]
-          },
-          {
-            "width": 304,
-            "height": 680,
-            "type": "panel",
-            "active": 0,
-            "children": [
-              "inspector"
             ]
           }
         ]
@@ -82,8 +82,7 @@
         "timeline",
         "inspector"
       ]
-    },
-    " common-asset-worker-worker": {}
+    }
   },
   "panels": {
     "project-settings": {

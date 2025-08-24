@@ -44,10 +44,10 @@ var pdk_ControlManager = app.BaseClass.extend({
         let promisefunc = function (resolve, reject) {
             const finalResType = resType || undefined;
 
-            const onLoaded = function (error, loadData) {
+            const onLoadedFromResources = function (error, loadData) {
                 if (error) {
                     reject(error);
-                    that.ErrLog("CreateLoadPromise failed resPath(%s) resType(%s), error:%s", resPath, resType, error.stack);
+                    that.ErrLog("CreateLoadPromise failed (resources) resPath(%s) resType(%s), error:%s", resPath, resType, (error.stack || error));
                     return;
                 }
                 that.catchDataDict[resPath] = loadData;
@@ -55,12 +55,20 @@ var pdk_ControlManager = app.BaseClass.extend({
             };
 
             const loadFromResources = function () {
-                cc.resources.load(resPath, finalResType, onLoaded);
+                cc.resources.load(resPath, finalResType, onLoadedFromResources);
             };
 
             const loadFromBundle = function (bundle) {
                 try {
-                    bundle.load(resPath, finalResType, onLoaded);
+                    bundle.load(resPath, finalResType, function (error, loadData) {
+                        if (error) {
+                            // 分包里没有则回退到 resources
+                            that.Log("bundle.load failed, fallback to resources. bundle(%s) resPath(%s) err:%s", that.subBundleName, resPath, (error.stack || error));
+                            return loadFromResources();
+                        }
+                        that.catchDataDict[resPath] = loadData;
+                        resolve(loadData);
+                    });
                 } catch (e) {
                     // 意外异常时回退到 resources
                     that.ErrLog("bundle.load exception, fallback to resources. resPath(%s) err:%s", resPath, e.stack || e);

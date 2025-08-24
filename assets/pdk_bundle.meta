@@ -1,0 +1,21 @@
+{
+  "ver": "1.1.3",
+  "uuid": "da097b7d-185c-47ef-8635-830c6cf8f673",
+  "importer": "folder",
+  "isBundle": true,
+  "bundleName": "pdk",
+  "priority": 1,
+  "compressionType": {
+    "android": "default"
+  },
+  "optimizeHotUpdate": {
+    "android": false
+  },
+  "inlineSpriteFrames": {
+    "android": false
+  },
+  "isRemoteBundle": {
+    "android": true
+  },
+  "subMetas": {}
+}

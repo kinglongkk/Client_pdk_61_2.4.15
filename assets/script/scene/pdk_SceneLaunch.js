@@ -85,19 +85,18 @@ cc.Class({
             this.clientConfig = JSON.parse(this.localConfig);
             this.initState = this.State_LoadText;
         }else{
-            let that = this;
-            this.Client.pdk_ControlManager.CreateLoadPromise("firstConfig")
-                .then(function(textData){
-
-                    if(!that.OnLoadFirstConfig(textData)){
-                        that.ErrLog("OnLoadFirstConfig(%s) fail", textData);
-                        that.initState = that.State_LoadResFail;
-                    }
-                })
-                .catch (function(error){
-                    that.ErrLog("OnLoadFirstConfig:%s error", error.stack);
-                    that.initState = that.State_LoadResFail;
-                })
+            var self = this;
+            cc.resources.load('firstConfig', cc.TextAsset, function (err, asset) {
+                if (err) {
+                    self.ErrLog("OnLoadFirstConfig:%s error", (err.stack || err));
+                    self.initState = self.State_LoadResFail;
+                    return;
+                }
+                if (!self.OnLoadFirstConfig(asset)) {
+                    self.ErrLog("OnLoadFirstConfig(%s) fail", asset && asset.text);
+                    self.initState = self.State_LoadResFail;
+                }
+            });
         }
     },
 
@@ -370,15 +369,15 @@ cc.Class({
             let keyNameList = this.AllTableDict[tableName];
             let tablePath = 'jsonData/' + tableName;
 
-            this.Client.pdk_ControlManager.CreateLoadPromise(tablePath, cc.Asset)
-                                    .then(function(textData){
-                                        that.loadTableCount += 1;
-                                        that.allTableDataDict[tableName] = {"Data":textData, "KeyNameList":keyNameList};
-                                    })
-                                    .catch(function(error){
-                                        that.ErrLog("tablePath(%s) error:%s", tablePath, error.stack);
-                                        that.initState = that.State_LoadResFail;
-                                    })
+            cc.resources.load(tablePath, cc.JsonAsset, function(err, asset){
+                if (err) {
+                    that.ErrLog("tablePath(%s) error:%s", tablePath, (err.stack || err));
+                    that.initState = that.State_LoadResFail;
+                    return;
+                }
+                that.loadTableCount += 1;
+                that.allTableDataDict[tableName] = { Data: asset, KeyNameList: keyNameList };
+            });
         }
     },
 
