@@ -1,0 +1,20 @@
+{
+  "actualPlatform": "android",
+  "apiLevel": "android-28",
+  "appABIs": [],
+  "buildPath": "/Volumes/MyDisk/builds_61_2.4.15/pdk",
+  "debug": false,
+  "embedWebDebugger": false,
+  "keystoreAlias": "",
+  "keystoreAliasPassword": "",
+  "keystorePassword": "",
+  "keystorePath": "",
+  "platform": "android",
+  "previewHeight": "720",
+  "previewWidth": "1280",
+  "sourceMaps": false,
+  "template": "default",
+  "useDebugKeystore": true,
+  "vsVersion": "auto",
+  "buildScriptsOnly": false
+}
